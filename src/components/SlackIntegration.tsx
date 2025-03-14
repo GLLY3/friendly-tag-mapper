@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SlackService, UserMapping } from '@/services/slackService';
-import { Loader2, Download, Check, HelpCircle } from 'lucide-react';
+import { Loader2, Download, Check, HelpCircle, UserPlus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SlackIntegration = () => {
   const [token, setToken] = useState('');
@@ -17,6 +18,10 @@ const SlackIntegration = () => {
   const [users, setUsers] = useState<UserMapping[]>([]);
   const [exportFormat, setExportFormat] = useState<'csv'|'text'>('csv');
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'all'|'new'>('all');
+
+  const today = new Date().toISOString().split('T')[0];
+  const newUsers = users.filter(user => user.addedOn === today);
 
   const fetchUsers = async () => {
     if (!token || !channelId) {
@@ -33,10 +38,17 @@ const SlackIntegration = () => {
       const slackService = new SlackService(token, channelId);
       const userMappings = await slackService.mapUserTagsToIds();
       setUsers(userMappings);
+      
+      const newUsersCount = userMappings.filter(user => user.addedOn === today).length;
+      
       toast({
         title: "Success!",
-        description: `Retrieved ${userMappings.length} users from the Slack channel`,
+        description: `Retrieved ${userMappings.length} users from the Slack channel. ${newUsersCount} new users added today.`,
       });
+      
+      if (newUsersCount > 0) {
+        setActiveTab('new');
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -59,21 +71,28 @@ const SlackIntegration = () => {
       return;
     }
 
+    // Get the currently displayed users based on the active tab
+    const usersToExport = activeTab === 'new' ? newUsers : users;
+    
     let content = '';
     const filename = `slack-user-mappings-${new Date().toISOString().slice(0, 10)}`;
 
     if (exportFormat === 'csv') {
-      content = 'Full Name,Slack Tag\n';
-      content += users.map(user => `"${user.realName}","${user.slackTag}"`).join('\n');
+      content = 'Full Name,Slack Tag,Added On\n';
+      content += usersToExport.map(user => 
+        `"${user.realName}","${user.slackTag}","${user.addedOn || 'N/A'}"`
+      ).join('\n');
       downloadFile(`${filename}.csv`, content, 'text/csv');
     } else {
-      content = users.map(user => `${user.realName} / ${user.slackTag}`).join('\n');
+      content = usersToExport.map(user => 
+        `${user.realName} / ${user.slackTag} (Added: ${user.addedOn || 'N/A'})`
+      ).join('\n');
       downloadFile(`${filename}.txt`, content, 'text/plain');
     }
 
     toast({
       title: "Export complete",
-      description: `Successfully exported ${users.length} user mappings`,
+      description: `Successfully exported ${usersToExport.length} user mappings`,
     });
   };
 
@@ -205,32 +224,78 @@ const SlackIntegration = () => {
                 </div>
               </div>
               
-              <div className="border rounded-md max-h-96 overflow-auto">
-                <Table>
-                  <TableCaption>Retrieved {users.length} users from Slack</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Full Name</TableHead>
-                      <TableHead>Slack Tag</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{user.realName}</TableCell>
-                        <TableCell>{user.slackTag}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all'|'new')} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="all" className="flex items-center justify-center gap-2">
+                    All Users ({users.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="new" className="flex items-center justify-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    New Today ({newUsers.length})
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="all" className="mt-4">
+                  <div className="border rounded-md max-h-96 overflow-auto">
+                    <Table>
+                      <TableCaption>Retrieved {users.length} users from Slack</TableCaption>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Full Name</TableHead>
+                          <TableHead>Slack Tag</TableHead>
+                          <TableHead>Added On</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {users.map((user, index) => (
+                          <TableRow key={index} className={user.addedOn === today ? "bg-green-50" : ""}>
+                            <TableCell>{user.realName}</TableCell>
+                            <TableCell>{user.slackTag}</TableCell>
+                            <TableCell>{user.addedOn || "N/A"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="new" className="mt-4">
+                  {newUsers.length > 0 ? (
+                    <div className="border rounded-md max-h-96 overflow-auto">
+                      <Table>
+                        <TableCaption>Found {newUsers.length} new users today</TableCaption>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Full Name</TableHead>
+                            <TableHead>Slack Tag</TableHead>
+                            <TableHead>Added On</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {newUsers.map((user, index) => (
+                            <TableRow key={index} className="bg-green-50">
+                              <TableCell>{user.realName}</TableCell>
+                              <TableCell>{user.slackTag}</TableCell>
+                              <TableCell>{user.addedOn}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg bg-muted/30">
+                      <p className="text-muted-foreground">No new users added today</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
           {users.length > 0 && (
             <p className="text-sm text-muted-foreground">
-              Showing {users.length} users
+              Last updated: {new Date().toLocaleString()}
             </p>
           )}
         </CardFooter>

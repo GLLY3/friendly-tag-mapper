@@ -1,4 +1,3 @@
-
 interface SlackUserProfile {
   real_name: string;
   display_name: string;
@@ -31,6 +30,7 @@ export interface UserMapping {
   realName: string;
   slackTag: string;
   userId: string;
+  addedOn?: string;
 }
 
 export class SlackService {
@@ -47,8 +47,6 @@ export class SlackService {
       let members: string[] = [];
       let cursor: string | undefined;
       
-      // This will create a mock response for development/demo purposes
-      // In a production environment, you would need a backend proxy or use Slack's OAuth flow
       if (this.token.startsWith('xoxb-demo')) {
         return this.getMockMembers();
       }
@@ -103,7 +101,6 @@ export class SlackService {
 
   async getUserInfo(userId: string): Promise<SlackUser> {
     try {
-      // This will create a mock response for development/demo purposes
       if (this.token.startsWith('xoxb-demo')) {
         return this.getMockUserInfo(userId);
       }
@@ -135,13 +132,15 @@ export class SlackService {
 
   async mapUserTagsToIds(): Promise<UserMapping[]> {
     try {
-      // For demo purposes with mock data
       if (this.token.startsWith('xoxb-demo')) {
         return this.getMockUserMappings();
       }
       
       const members = await this.getChannelMembers();
       const userMappings: UserMapping[] = [];
+      const existingMappings = this.getStoredMappings();
+      const existingUserIds = new Set(existingMappings.map(m => m.userId));
+      const today = new Date().toISOString().split('T')[0];
 
       for (const userId of members) {
         try {
@@ -150,19 +149,23 @@ export class SlackService {
           if (userInfo && !userInfo.deleted && !userInfo.is_bot) {
             const realName = userInfo.profile.real_name || '';
             if (realName) {
+              const isNewUser = !existingUserIds.has(userId);
+              
               userMappings.push({
                 realName,
                 slackTag: `@${userInfo.name}`,
-                userId
+                userId,
+                addedOn: isNewUser ? today : this.findAddedOnDate(existingMappings, userId)
               });
             }
           }
         } catch (error) {
           console.error(`Error processing user ${userId}:`, error);
-          // Continue with other users
         }
       }
 
+      this.storeMappings(userMappings);
+      
       return userMappings;
     } catch (error) {
       console.error('Error mapping user tags to IDs:', error);
@@ -170,13 +173,34 @@ export class SlackService {
     }
   }
   
-  // Mock data methods for demo purposes
+  private storeMappings(mappings: UserMapping[]): void {
+    try {
+      localStorage.setItem('slack_user_mappings', JSON.stringify(mappings));
+    } catch (e) {
+      console.error('Failed to store mappings:', e);
+    }
+  }
+  
+  private getStoredMappings(): UserMapping[] {
+    try {
+      const stored = localStorage.getItem('slack_user_mappings');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error('Failed to retrieve stored mappings:', e);
+      return [];
+    }
+  }
+  
+  private findAddedOnDate(existingMappings: UserMapping[], userId: string): string | undefined {
+    const existing = existingMappings.find(m => m.userId === userId);
+    return existing?.addedOn;
+  }
+  
   private getMockMembers(): string[] {
     return ['U01', 'U02', 'U03', 'U04', 'U05', 'U06', 'U07', 'U08', 'U09', 'U10'];
   }
   
   private getMockUserInfo(userId: string): SlackUser {
-    // Generate mock user data
     const id = userId;
     const userNumber = parseInt(userId.replace('U', ''));
     const name = `user${userNumber}`;
@@ -194,7 +218,13 @@ export class SlackService {
   }
   
   private getMockUserMappings(): UserMapping[] {
-    return [
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    
+    const existingMappings = this.getStoredMappings();
+    const existingUserIds = new Map(existingMappings.map(m => [m.userId, m.addedOn]));
+    
+    const mockMappings = [
       { realName: 'John Doe', slackTag: '@johndoe', userId: 'U01' },
       { realName: 'Jane Smith', slackTag: '@janesmith', userId: 'U02' },
       { realName: 'Alex Johnson', slackTag: '@alexj', userId: 'U03' },
@@ -205,6 +235,18 @@ export class SlackService {
       { realName: 'Jessica Wilson', slackTag: '@jessw', userId: 'U08' },
       { realName: 'Chris Taylor', slackTag: '@christ', userId: 'U09' },
       { realName: 'Anna Martinez', slackTag: '@annam', userId: 'U10' }
-    ];
+    ].map(mapping => {
+      const existingDate = existingUserIds.get(mapping.userId);
+      const addedOn = existingDate || (Math.random() > 0.7 ? today : yesterday);
+      
+      return {
+        ...mapping,
+        addedOn
+      };
+    });
+    
+    this.storeMappings(mockMappings);
+    
+    return mockMappings;
   }
 }
