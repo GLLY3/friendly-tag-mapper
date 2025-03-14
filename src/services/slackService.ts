@@ -17,10 +17,14 @@ interface SlackMembersResponse {
   response_metadata?: {
     next_cursor?: string;
   };
+  ok: boolean;
+  error?: string;
 }
 
 interface SlackUserResponse {
   user: SlackUser;
+  ok: boolean;
+  error?: string;
 }
 
 export interface UserMapping {
@@ -43,6 +47,12 @@ export class SlackService {
       let members: string[] = [];
       let cursor: string | undefined;
       
+      // This will create a mock response for development/demo purposes
+      // In a production environment, you would need a backend proxy or use Slack's OAuth flow
+      if (this.token.startsWith('xoxb-demo')) {
+        return this.getMockMembers();
+      }
+      
       do {
         const response = await fetch(`https://slack.com/api/conversations.members`, {
           method: 'POST',
@@ -58,10 +68,14 @@ export class SlackService {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch members: ${response.statusText}`);
+          throw new Error(`Failed to fetch members: ${response.statusText}. This is likely due to CORS restrictions. You need a server-side proxy to call Slack APIs.`);
         }
 
         const data = await response.json() as SlackMembersResponse;
+        
+        if (!data.ok) {
+          throw new Error(`Slack API error: ${data.error || 'Unknown error'}`);
+        }
         
         if (!data.members) {
           throw new Error('No members found in response');
@@ -74,13 +88,27 @@ export class SlackService {
       return members;
     } catch (error) {
       console.error('Error retrieving channel members:', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error(
+          'Failed to connect to Slack API due to CORS restrictions. For browser security reasons, ' +
+          'direct API calls to Slack from a browser are not allowed. To use this feature, you would need ' +
+          'a server-side proxy or backend. For demo purposes, use token "xoxb-demo" to see sample data.'
+        );
+      }
+      
       throw error;
     }
   }
 
   async getUserInfo(userId: string): Promise<SlackUser> {
     try {
-      const response = await fetch(`https://slack.com/api/users.info`, {
+      // This will create a mock response for development/demo purposes
+      if (this.token.startsWith('xoxb-demo')) {
+        return this.getMockUserInfo(userId);
+      }
+      
+      const response = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.token}`
@@ -93,6 +121,11 @@ export class SlackService {
       }
 
       const data = await response.json() as SlackUserResponse;
+      
+      if (!data.ok) {
+        throw new Error(`Slack API error: ${data.error || 'Unknown error'}`);
+      }
+      
       return data.user;
     } catch (error) {
       console.error(`Error retrieving user info for ${userId}:`, error);
@@ -102,6 +135,11 @@ export class SlackService {
 
   async mapUserTagsToIds(): Promise<UserMapping[]> {
     try {
+      // For demo purposes with mock data
+      if (this.token.startsWith('xoxb-demo')) {
+        return this.getMockUserMappings();
+      }
+      
       const members = await this.getChannelMembers();
       const userMappings: UserMapping[] = [];
 
@@ -130,5 +168,43 @@ export class SlackService {
       console.error('Error mapping user tags to IDs:', error);
       throw error;
     }
+  }
+  
+  // Mock data methods for demo purposes
+  private getMockMembers(): string[] {
+    return ['U01', 'U02', 'U03', 'U04', 'U05', 'U06', 'U07', 'U08', 'U09', 'U10'];
+  }
+  
+  private getMockUserInfo(userId: string): SlackUser {
+    // Generate mock user data
+    const id = userId;
+    const userNumber = parseInt(userId.replace('U', ''));
+    const name = `user${userNumber}`;
+    
+    return {
+      id,
+      name,
+      profile: {
+        real_name: `User ${userNumber}`,
+        display_name: `user${userNumber}`
+      },
+      is_bot: false,
+      deleted: false
+    };
+  }
+  
+  private getMockUserMappings(): UserMapping[] {
+    return [
+      { realName: 'John Doe', slackTag: '@johndoe', userId: 'U01' },
+      { realName: 'Jane Smith', slackTag: '@janesmith', userId: 'U02' },
+      { realName: 'Alex Johnson', slackTag: '@alexj', userId: 'U03' },
+      { realName: 'Sarah Williams', slackTag: '@sarahw', userId: 'U04' },
+      { realName: 'Michael Brown', slackTag: '@mikeb', userId: 'U05' },
+      { realName: 'Emily Davis', slackTag: '@emilyd', userId: 'U06' },
+      { realName: 'David Miller', slackTag: '@davidm', userId: 'U07' },
+      { realName: 'Jessica Wilson', slackTag: '@jessw', userId: 'U08' },
+      { realName: 'Chris Taylor', slackTag: '@christ', userId: 'U09' },
+      { realName: 'Anna Martinez', slackTag: '@annam', userId: 'U10' }
+    ];
   }
 }

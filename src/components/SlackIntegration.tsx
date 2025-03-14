@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SlackService, UserMapping } from '@/services/slackService';
-import { Loader2, Download, Check } from 'lucide-react';
+import { Loader2, Download, Check, HelpCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const SlackIntegration = () => {
   const [token, setToken] = useState('');
@@ -88,6 +89,16 @@ const SlackIntegration = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Use demo credentials
+  const useDemoCredentials = () => {
+    setToken('xoxb-demo');
+    setChannelId('C0123456789');
+    toast({
+      title: "Demo mode activated",
+      description: "Using demo credentials to show sample data",
+    });
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto">
       <Card className="shadow-md bg-white/50 backdrop-blur-sm">
@@ -98,6 +109,16 @@ const SlackIntegration = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <Alert className="mb-6 bg-amber-50 border-amber-200">
+            <HelpCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Browser Limitations</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Due to browser security restrictions (CORS), direct Slack API calls cannot be made from a browser.
+              For demonstration purposes, click "Use Demo Data" or use "xoxb-demo" as token to see sample data.
+              In a production environment, you would need a server-side proxy or backend.
+            </AlertDescription>
+          </Alert>
+
           <div className="grid gap-6">
             <div className="grid gap-3">
               <Label htmlFor="token">Slack Bot Token</Label>
@@ -124,20 +145,30 @@ const SlackIntegration = () => {
                 You can find the channel ID in the URL when viewing a channel in Slack.
               </p>
             </div>
-            <Button 
-              onClick={fetchUsers} 
-              className="w-full" 
-              disabled={loading || !token || !channelId}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Fetching Users...
-                </>
-              ) : (
-                "Fetch Users from Slack"
-              )}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={fetchUsers} 
+                className="flex-1" 
+                disabled={loading || !token || !channelId}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Fetching Users...
+                  </>
+                ) : (
+                  "Fetch Users from Slack"
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={useDemoCredentials}
+                className="flex-1"
+                disabled={loading}
+              >
+                Use Demo Data
+              </Button>
+            </div>
           </div>
 
           {users.length > 0 && (
