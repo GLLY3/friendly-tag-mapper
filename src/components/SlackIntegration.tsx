@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,7 @@ import { Loader2, Download, Check, HelpCircle, UserPlus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ProxyNotification from './ProxyNotification';
 
 const SlackIntegration = () => {
   const [token, setToken] = useState('');
@@ -71,7 +71,6 @@ const SlackIntegration = () => {
       return;
     }
 
-    // Get the currently displayed users based on the active tab
     const usersToExport = activeTab === 'new' ? newUsers : users;
     
     let content = '';
@@ -108,7 +107,6 @@ const SlackIntegration = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Use demo credentials
   const useDemoCredentials = () => {
     setToken('xoxb-demo');
     setChannelId('C0123456789');
@@ -128,6 +126,8 @@ const SlackIntegration = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <ProxyNotification />
+          
           <Alert className="mb-6 bg-amber-50 border-amber-200">
             <HelpCircle className="h-4 w-4 text-amber-600" />
             <AlertTitle className="text-amber-800">Browser Limitations</AlertTitle>

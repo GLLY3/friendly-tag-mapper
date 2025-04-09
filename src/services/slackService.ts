@@ -1,3 +1,4 @@
+
 interface SlackUserProfile {
   real_name: string;
   display_name: string;
@@ -36,10 +37,12 @@ export interface UserMapping {
 export class SlackService {
   private token: string;
   private channelId: string;
+  private apiUrl: string;
 
   constructor(token: string, channelId: string) {
     this.token = token;
     this.channelId = channelId;
+    this.apiUrl = 'http://localhost:3001/api/slack';
   }
 
   async getChannelMembers(): Promise<string[]> {
@@ -52,13 +55,13 @@ export class SlackService {
       }
       
       do {
-        const response = await fetch(`https://slack.com/api/conversations.members`, {
+        const response = await fetch(`${this.apiUrl}/conversations.members`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Bearer ${this.token}`
+            'Content-Type': 'application/json',
           },
-          body: new URLSearchParams({
+          body: JSON.stringify({
+            token: this.token,
             channel: this.channelId,
             limit: '200',
             ...(cursor ? { cursor } : {})
@@ -66,7 +69,7 @@ export class SlackService {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch members: ${response.statusText}. This is likely due to CORS restrictions. You need a server-side proxy to call Slack APIs.`);
+          throw new Error(`Failed to fetch members: ${response.statusText}`);
         }
 
         const data = await response.json() as SlackMembersResponse;
@@ -89,9 +92,8 @@ export class SlackService {
       
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         throw new Error(
-          'Failed to connect to Slack API due to CORS restrictions. For browser security reasons, ' +
-          'direct API calls to Slack from a browser are not allowed. To use this feature, you would need ' +
-          'a server-side proxy or backend. For demo purposes, use token "xoxb-demo" to see sample data.'
+          'Failed to connect to proxy server. Make sure your server is running on http://localhost:3001. ' +
+          'Run "node server.js" in a separate terminal window before using this app.'
         );
       }
       
@@ -105,7 +107,7 @@ export class SlackService {
         return this.getMockUserInfo(userId);
       }
       
-      const response = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
+      const response = await fetch(`${this.apiUrl}/users.info?user=${userId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.token}`
