@@ -22,42 +22,57 @@ const SlackIntegration = () => {
   const newUsers = users.filter(user => user.addedOn === today);
 
   useEffect(() => {
+    // Initialize SlackService
+    const service = new SlackService();
+    setSlackService(service);
+
+    // Load existing mappings
     const loadExistingMappings = async () => {
       try {
-        const response = await fetch('/api/mappings');
+        const response = await fetch('http://localhost:3001/api/mappings');
         if (response.ok) {
           const data = await response.json();
-          if (data.mappings && data.mappings.length > 0) {
-            setUsers(data.mappings);
-            const service = new SlackService();
-            setSlackService(service);
+          if (Array.isArray(data) && data.length > 0) {
+            setUsers(data);
           }
         }
       } catch (error) {
         console.error('Error loading existing mappings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load existing mappings. Please check if the server is running.",
+          variant: "destructive",
+        });
       }
     };
 
     loadExistingMappings();
-  }, []);
+  }, [toast]);
 
   const fetchUsers = async () => {
+    if (!slackService) return;
+    
     setLoading(true);
     try {
-      const service = new SlackService();
-      setSlackService(service);
-      const userMappings = await service.mapUserTagsToIds();
-      setUsers(userMappings);
+      const userMappings = await slackService.mapUserTagsToIds();
       
-      const newUsersCount = userMappings.filter(user => user.addedOn === today).length;
+      // Merge new users with existing ones, preserving addedOn dates
+      const existingUserIds = new Set(users.map(user => user.userId));
+      const newMappings = userMappings.filter(mapping => !existingUserIds.has(mapping.userId));
       
-      toast({
-        title: "Success!",
-        description: `Retrieved ${userMappings.length} users from the Slack channel. ${newUsersCount} new users added today.`,
-      });
-      
-      if (newUsersCount > 0) {
+      if (newMappings.length > 0) {
+        setUsers(prevUsers => [...prevUsers, ...newMappings]);
         setActiveTab('new');
+        
+        toast({
+          title: "Success!",
+          description: `Added ${newMappings.length} new users to the channel.`,
+        });
+      } else {
+        toast({
+          title: "No new users",
+          description: "All users are already in the list.",
+        });
       }
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -123,35 +138,39 @@ const SlackIntegration = () => {
         <CardHeader>
           <CardTitle className="text-xl">Slack Channel User Mapper</CardTitle>
           <CardDescription>
-            Connect to Slack and retrieve users from a channel
+            {users.length > 0 
+              ? `Showing ${users.length} users from the channel`
+              : "Connect to Slack and retrieve users from a channel"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ProxyNotification />
           
-          <Alert className="mb-6 bg-amber-50 border-amber-200">
-            <HelpCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">Configuration Required</AlertTitle>
-            <AlertDescription className="text-amber-700">
-              Please ensure you have set up your .env file with SLACK_BOT_TOKEN and SLACK_CHANNEL_ID.
-            </AlertDescription>
-          </Alert>
+          {users.length === 0 && (
+            <Alert className="mb-6 bg-amber-50 border-amber-200">
+              <HelpCircle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800">Configuration Required</AlertTitle>
+              <AlertDescription className="text-amber-700">
+                Please ensure you have set up your .env file with SLACK_BOT_TOKEN and SLACK_CHANNEL_ID.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="flex justify-center">
             <Button
               onClick={fetchUsers}
-              disabled={loading}
+              disabled={loading || !slackService}
               className="flex items-center gap-2"
             >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Fetching Users...
+                  Fetching New Users...
                 </>
               ) : (
                 <>
                   <UserPlus className="h-4 w-4" />
-                  Fetch Users
+                  Fetch New Users
                 </>
               )}
             </Button>
@@ -191,8 +210,8 @@ const SlackIntegration = () => {
               
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'all'|'new')}>
                 <TabsList className="mb-4">
-                  <TabsTrigger value="all">All Users</TabsTrigger>
-                  <TabsTrigger value="new">New Today</TabsTrigger>
+                  <TabsTrigger value="all">All Users ({users.length})</TabsTrigger>
+                  <TabsTrigger value="new">New Today ({newUsers.length})</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="all">

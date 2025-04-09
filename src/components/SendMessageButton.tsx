@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SlackService } from '@/services/slackService';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -84,7 +84,7 @@ const SendMessageButton: React.FC<SendMessageButtonProps> = ({ userId, slackServ
               Send Message to {userName || ''}
             </DialogTitle>
           </DialogHeader>
-          
+            
           <MessageEditor 
             defaultMessage={DEFAULT_MESSAGE}
             onSend={handleSendMessage}
