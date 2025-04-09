@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,8 +8,8 @@ import MessageEditor from './MessageEditor';
 
 interface SendMessageButtonProps {
   userId: string;
-  userName: string;
-  slackService: SlackService;
+  slackService: SlackService | null;
+  userName?: string;
 }
 
 const DEFAULT_MESSAGE = `🎉*Welcome to the Spring 25 Slack Workspace!* ✨\n\n
@@ -35,16 +34,14 @@ Please also *add your residency location, and your LinkedIn link!*\n\n
 Please contact <@gleb.lialine> (gleb.lialine@antler.co) if you have any questions!\n\n\n
 We're super excited to get to know you and can't wait to see what you'll build! 💡🔥`;
 
-const SendMessageButton: React.FC<SendMessageButtonProps> = ({ 
-  userId, 
-  userName,
-  slackService 
-}) => {
+const SendMessageButton: React.FC<SendMessageButtonProps> = ({ userId, slackService, userName }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
 
   const handleSendMessage = async (message: string) => {
+    if (!slackService) return;
+
     setIsSending(true);
     try {
       await slackService.sendDirectMessage(userId, message);
@@ -52,7 +49,7 @@ const SendMessageButton: React.FC<SendMessageButtonProps> = ({
       
       toast({
         title: "Message sent",
-        description: `Successfully sent message to ${userName}`,
+        description: `Successfully sent message to ${userName || ''}`,
       });
     } catch (error) {
       console.error('Error sending message:', error);
@@ -73,7 +70,8 @@ const SendMessageButton: React.FC<SendMessageButtonProps> = ({
         size="sm"
         onClick={() => setIsOpen(true)}
         className="h-8 w-8 p-0"
-        title={`Send message to ${userName}`}
+        title={`Send message to ${userName || ''}`}
+        disabled={!slackService}
       >
         <MessageSquare className="h-4 w-4 text-primary hover:text-primary/80 transition-colors" />
         <span className="sr-only">Send message</span>
@@ -83,7 +81,7 @@ const SendMessageButton: React.FC<SendMessageButtonProps> = ({
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">
-              Send Message to {userName}
+              Send Message to {userName || ''}
             </DialogTitle>
           </DialogHeader>
           

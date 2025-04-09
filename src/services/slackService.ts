@@ -26,7 +26,7 @@ interface SlackUserResponse {
   error?: string;
 }
 
-interface UserMapping {
+export interface UserMapping {
   realName: string;
   slackTag: string;
   userId: string;
@@ -45,10 +45,14 @@ export class SlackService {
   private channelId: string;
   private apiUrl: string;
 
-  constructor(token: string, channelId: string) {
-    this.token = token;
-    this.channelId = channelId;
+  constructor() {
+    this.token = import.meta.env.VITE_SLACK_BOT_TOKEN;
+    this.channelId = import.meta.env.VITE_SLACK_CHANNEL_ID;
     this.apiUrl = 'http://localhost:3001/api/slack';
+
+    if (!this.token || !this.channelId) {
+      throw new Error('SLACK_BOT_TOKEN and SLACK_CHANNEL_ID must be set in environment variables');
+    }
   }
 
   async getChannelMembers(): Promise<string[]> {

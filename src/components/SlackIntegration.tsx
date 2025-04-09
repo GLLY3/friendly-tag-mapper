@@ -1,8 +1,5 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SlackService, UserMapping } from '@/services/slackService';
@@ -14,8 +11,6 @@ import ProxyNotification from './ProxyNotification';
 import SendMessageButton from './SendMessageButton';
 
 const SlackIntegration = () => {
-  const [token, setToken] = useState('');
-  const [channelId, setChannelId] = useState('');
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<UserMapping[]>([]);
   const [exportFormat, setExportFormat] = useState<'csv'|'text'>('csv');
@@ -26,19 +21,30 @@ const SlackIntegration = () => {
   const today = new Date().toISOString().split('T')[0];
   const newUsers = users.filter(user => user.addedOn === today);
 
-  const fetchUsers = async () => {
-    if (!token || !channelId) {
-      toast({
-        title: "Missing information",
-        description: "Please enter both a Slack token and channel ID",
-        variant: "destructive",
-      });
-      return;
-    }
+  useEffect(() => {
+    const loadExistingMappings = async () => {
+      try {
+        const response = await fetch('/api/mappings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.mappings && data.mappings.length > 0) {
+            setUsers(data.mappings);
+            const service = new SlackService();
+            setSlackService(service);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing mappings:', error);
+      }
+    };
 
+    loadExistingMappings();
+  }, []);
+
+  const fetchUsers = async () => {
     setLoading(true);
     try {
-      const service = new SlackService(token, channelId);
+      const service = new SlackService();
       setSlackService(service);
       const userMappings = await service.mapUserTagsToIds();
       setUsers(userMappings);
@@ -111,17 +117,6 @@ const SlackIntegration = () => {
     URL.revokeObjectURL(url);
   };
 
-  const useDemoCredentials = () => {
-    setToken('xoxb-demo');
-    setChannelId('C0123456789');
-    const service = new SlackService('xoxb-demo', 'C0123456789');
-    setSlackService(service);
-    toast({
-      title: "Demo mode activated",
-      description: "Using demo credentials to show sample data",
-    });
-  };
-
   return (
     <div className="w-full max-w-4xl mx-auto">
       <Card className="shadow-md bg-white/50 backdrop-blur-sm">
@@ -136,64 +131,30 @@ const SlackIntegration = () => {
           
           <Alert className="mb-6 bg-amber-50 border-amber-200">
             <HelpCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">Browser Limitations</AlertTitle>
+            <AlertTitle className="text-amber-800">Configuration Required</AlertTitle>
             <AlertDescription className="text-amber-700">
-              Due to browser security restrictions (CORS), direct Slack API calls cannot be made from a browser.
-              For demonstration purposes, click "Use Demo Data" or use "xoxb-demo" as token to see sample data.
-              In a production environment, you would need a server-side proxy or backend.
+              Please ensure you have set up your .env file with SLACK_BOT_TOKEN and SLACK_CHANNEL_ID.
             </AlertDescription>
           </Alert>
 
-          <div className="grid gap-6">
-            <div className="grid gap-3">
-              <Label htmlFor="token">Slack Bot Token</Label>
-              <Input
-                id="token"
-                type="password"
-                placeholder="xoxb-..."
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Your Slack bot token should start with xoxb-. You'll need to create a bot with users:read, conversations:read, chat:write, and im:write scopes.
-              </p>
-            </div>
-            <div className="grid gap-3">
-              <Label htmlFor="channelId">Channel ID</Label>
-              <Input
-                id="channelId"
-                placeholder="C0123456789"
-                value={channelId}
-                onChange={(e) => setChannelId(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                You can find the channel ID in the URL when viewing a channel in Slack.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button 
-                onClick={fetchUsers} 
-                className="flex-1" 
-                disabled={loading || !token || !channelId}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Fetching Users...
-                  </>
-                ) : (
-                  "Fetch Users from Slack"
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={useDemoCredentials}
-                className="flex-1"
-                disabled={loading}
-              >
-                Use Demo Data
-              </Button>
-            </div>
+          <div className="flex justify-center">
+            <Button
+              onClick={fetchUsers}
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Fetching Users...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4" />
+                  Fetch Users
+                </>
+              )}
+            </Button>
           </div>
 
           {users.length > 0 && (
@@ -202,17 +163,15 @@ const SlackIntegration = () => {
                 <h3 className="text-lg font-medium">User Mappings</h3>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="format-csv" className="cursor-pointer">CSV</Label>
-                    <Input 
-                      id="format-csv"
+                    <span className="text-sm">CSV</span>
+                    <input 
                       type="radio" 
                       className="h-4 w-4" 
                       checked={exportFormat === 'csv'} 
                       onChange={() => setExportFormat('csv')}
                     />
-                    <Label htmlFor="format-text" className="cursor-pointer ml-2">Text</Label>
-                    <Input 
-                      id="format-text"
+                    <span className="text-sm ml-2">Text</span>
+                    <input 
                       type="radio" 
                       className="h-4 w-4"  
                       checked={exportFormat === 'text'} 
@@ -230,43 +189,34 @@ const SlackIntegration = () => {
                 </div>
               </div>
               
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all'|'new')} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="all" className="flex items-center justify-center gap-2">
-                    All Users ({users.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="new" className="flex items-center justify-center gap-2">
-                    <UserPlus className="h-4 w-4" />
-                    New Today ({newUsers.length})
-                  </TabsTrigger>
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'all'|'new')}>
+                <TabsList className="mb-4">
+                  <TabsTrigger value="all">All Users</TabsTrigger>
+                  <TabsTrigger value="new">New Today</TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="all" className="mt-4">
-                  <div className="border rounded-md max-h-96 overflow-auto">
+                <TabsContent value="all">
+                  <div className="border rounded-lg overflow-hidden">
                     <Table>
-                      <TableCaption>Retrieved {users.length} users from Slack</TableCaption>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Full Name</TableHead>
                           <TableHead>Slack Tag</TableHead>
                           <TableHead>Added On</TableHead>
-                          <TableHead className="w-[80px]"></TableHead>
+                          <TableHead className="w-[100px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {users.map((user, index) => (
-                          <TableRow key={index} className={user.addedOn === today ? "bg-green-50" : ""}>
+                        {users.map((user) => (
+                          <TableRow key={user.userId}>
                             <TableCell>{user.realName}</TableCell>
                             <TableCell>{user.slackTag}</TableCell>
-                            <TableCell>{user.addedOn || "N/A"}</TableCell>
+                            <TableCell>{user.addedOn || 'N/A'}</TableCell>
                             <TableCell>
-                              {slackService && (
-                                <SendMessageButton
-                                  userId={user.userId}
-                                  userName={user.realName}
-                                  slackService={slackService}
-                                />
-                              )}
+                              <SendMessageButton 
+                                userId={user.userId} 
+                                slackService={slackService} 
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -275,56 +225,39 @@ const SlackIntegration = () => {
                   </div>
                 </TabsContent>
                 
-                <TabsContent value="new" className="mt-4">
-                  {newUsers.length > 0 ? (
-                    <div className="border rounded-md max-h-96 overflow-auto">
-                      <Table>
-                        <TableCaption>Found {newUsers.length} new users today</TableCaption>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Full Name</TableHead>
-                            <TableHead>Slack Tag</TableHead>
-                            <TableHead>Added On</TableHead>
-                            <TableHead className="w-[80px]"></TableHead>
+                <TabsContent value="new">
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Full Name</TableHead>
+                          <TableHead>Slack Tag</TableHead>
+                          <TableHead>Added On</TableHead>
+                          <TableHead className="w-[100px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {newUsers.map((user) => (
+                          <TableRow key={user.userId}>
+                            <TableCell>{user.realName}</TableCell>
+                            <TableCell>{user.slackTag}</TableCell>
+                            <TableCell>{user.addedOn || 'N/A'}</TableCell>
+                            <TableCell>
+                              <SendMessageButton 
+                                userId={user.userId} 
+                                slackService={slackService} 
+                              />
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {newUsers.map((user, index) => (
-                            <TableRow key={index} className="bg-green-50">
-                              <TableCell>{user.realName}</TableCell>
-                              <TableCell>{user.slackTag}</TableCell>
-                              <TableCell>{user.addedOn}</TableCell>
-                              <TableCell>
-                                {slackService && (
-                                  <SendMessageButton
-                                    userId={user.userId}
-                                    userName={user.realName}
-                                    slackService={slackService}
-                                  />
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg bg-muted/30">
-                      <p className="text-muted-foreground">No new users added today</p>
-                    </div>
-                  )}
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </TabsContent>
               </Tabs>
             </div>
           )}
         </CardContent>
-        <CardFooter className="flex justify-between">
-          {users.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              Last updated: {new Date().toLocaleString()}
-            </p>
-          )}
-        </CardFooter>
       </Card>
     </div>
   );
