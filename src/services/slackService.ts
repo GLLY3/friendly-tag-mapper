@@ -26,7 +26,7 @@ interface SlackUserResponse {
   error?: string;
 }
 
-export interface UserMapping {
+interface UserMapping {
   realName: string;
   slackTag: string;
   userId: string;
@@ -146,7 +146,7 @@ export class SlackService {
       
       const members = await this.getChannelMembers();
       const userMappings: UserMapping[] = [];
-      const existingMappings = this.getStoredMappings();
+      const existingMappings = await this.getStoredMappings();
       const existingUserIds = new Set(existingMappings.map(m => m.userId));
       const today = new Date().toISOString().split('T')[0];
 
@@ -158,12 +158,13 @@ export class SlackService {
             const realName = userInfo.profile.real_name || '';
             if (realName) {
               const isNewUser = !existingUserIds.has(userId);
+              const existingUser = existingMappings.find(m => m.userId === userId);
               
               userMappings.push({
                 realName,
                 slackTag: `@${userInfo.name}`,
                 userId,
-                addedOn: isNewUser ? today : this.findAddedOnDate(existingMappings, userId)
+                addedOn: isNewUser ? today : existingUser?.addedOn
               });
             }
           }
@@ -172,7 +173,7 @@ export class SlackService {
         }
       }
 
-      this.storeMappings(userMappings);
+      await this.storeMappings(userMappings);
       
       return userMappings;
     } catch (error) {
@@ -218,18 +219,40 @@ export class SlackService {
     }
   }
   
-  private storeMappings(mappings: UserMapping[]): void {
+  private async storeMappings(mappings: UserMapping[]): Promise<void> {
     try {
-      localStorage.setItem('slack_user_mappings', JSON.stringify(mappings));
+      const response = await fetch('http://localhost:3001/api/mappings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mappings)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to store mappings on server');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error('Server returned unsuccessful response');
+      }
     } catch (e) {
       console.error('Failed to store mappings:', e);
+      throw e;
     }
   }
   
-  private getStoredMappings(): UserMapping[] {
+  private async getStoredMappings(): Promise<UserMapping[]> {
     try {
-      const stored = localStorage.getItem('slack_user_mappings');
-      return stored ? JSON.parse(stored) : [];
+      const response = await fetch('http://localhost:3001/api/mappings');
+      
+      if (!response.ok) {
+        throw new Error('Failed to retrieve mappings from server');
+      }
+      
+      return await response.json();
     } catch (e) {
       console.error('Failed to retrieve stored mappings:', e);
       return [];
@@ -262,35 +285,27 @@ export class SlackService {
     };
   }
   
-  private getMockUserMappings(): UserMapping[] {
+  private async getMockUserMappings(): Promise<UserMapping[]> {
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     
-    const existingMappings = this.getStoredMappings();
+    const existingMappings = await this.getStoredMappings();
     const existingUserIds = new Map(existingMappings.map(m => [m.userId, m.addedOn]));
     
-    const mockMappings = [
-      { realName: 'John Doe', slackTag: '@johndoe', userId: 'U01' },
-      { realName: 'Jane Smith', slackTag: '@janesmith', userId: 'U02' },
-      { realName: 'Alex Johnson', slackTag: '@alexj', userId: 'U03' },
-      { realName: 'Sarah Williams', slackTag: '@sarahw', userId: 'U04' },
-      { realName: 'Michael Brown', slackTag: '@mikeb', userId: 'U05' },
-      { realName: 'Emily Davis', slackTag: '@emilyd', userId: 'U06' },
-      { realName: 'David Miller', slackTag: '@davidm', userId: 'U07' },
-      { realName: 'Jessica Wilson', slackTag: '@jessw', userId: 'U08' },
-      { realName: 'Chris Taylor', slackTag: '@christ', userId: 'U09' },
-      { realName: 'Anna Martinez', slackTag: '@annam', userId: 'U10' }
-    ].map(mapping => {
-      const existingDate = existingUserIds.get(mapping.userId);
-      const addedOn = existingDate || (Math.random() > 0.7 ? today : yesterday);
-      
-      return {
-        ...mapping,
-        addedOn
-      };
-    });
+    const mockMappings: UserMapping[] = [
+      { realName: 'John Doe', slackTag: '@johndoe', userId: 'U01', addedOn: existingUserIds.get('U01') || today },
+      { realName: 'Jane Smith', slackTag: '@janesmith', userId: 'U02', addedOn: existingUserIds.get('U02') || today },
+      { realName: 'Alex Johnson', slackTag: '@alexj', userId: 'U03', addedOn: existingUserIds.get('U03') || today },
+      { realName: 'Sarah Williams', slackTag: '@sarahw', userId: 'U04', addedOn: existingUserIds.get('U04') || today },
+      { realName: 'Michael Brown', slackTag: '@mikeb', userId: 'U05', addedOn: existingUserIds.get('U05') || today },
+      { realName: 'Emily Davis', slackTag: '@emilyd', userId: 'U06', addedOn: existingUserIds.get('U06') || today },
+      { realName: 'David Miller', slackTag: '@davidm', userId: 'U07', addedOn: existingUserIds.get('U07') || today },
+      { realName: 'Jessica Wilson', slackTag: '@jessw', userId: 'U08', addedOn: existingUserIds.get('U08') || today },
+      { realName: 'Chris Taylor', slackTag: '@christ', userId: 'U09', addedOn: existingUserIds.get('U09') || today },
+      { realName: 'Anna Martinez', slackTag: '@annam', userId: 'U10', addedOn: existingUserIds.get('U10') || today }
+    ];
     
-    this.storeMappings(mockMappings);
+    await this.storeMappings(mockMappings);
     
     return mockMappings;
   }
