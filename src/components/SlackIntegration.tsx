@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProxyNotification from './ProxyNotification';
+import SendMessageButton from './SendMessageButton';
 
 const SlackIntegration = () => {
   const [token, setToken] = useState('');
@@ -19,6 +21,7 @@ const SlackIntegration = () => {
   const [exportFormat, setExportFormat] = useState<'csv'|'text'>('csv');
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'all'|'new'>('all');
+  const [slackService, setSlackService] = useState<SlackService | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const newUsers = users.filter(user => user.addedOn === today);
@@ -35,8 +38,9 @@ const SlackIntegration = () => {
 
     setLoading(true);
     try {
-      const slackService = new SlackService(token, channelId);
-      const userMappings = await slackService.mapUserTagsToIds();
+      const service = new SlackService(token, channelId);
+      setSlackService(service);
+      const userMappings = await service.mapUserTagsToIds();
       setUsers(userMappings);
       
       const newUsersCount = userMappings.filter(user => user.addedOn === today).length;
@@ -110,6 +114,8 @@ const SlackIntegration = () => {
   const useDemoCredentials = () => {
     setToken('xoxb-demo');
     setChannelId('C0123456789');
+    const service = new SlackService('xoxb-demo', 'C0123456789');
+    setSlackService(service);
     toast({
       title: "Demo mode activated",
       description: "Using demo credentials to show sample data",
@@ -149,7 +155,7 @@ const SlackIntegration = () => {
                 onChange={(e) => setToken(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Your Slack bot token should start with xoxb-. You'll need to create a bot with users:read and conversations:read scopes.
+                Your Slack bot token should start with xoxb-. You'll need to create a bot with users:read, conversations:read, chat:write, and im:write scopes.
               </p>
             </div>
             <div className="grid gap-3">
@@ -244,6 +250,7 @@ const SlackIntegration = () => {
                           <TableHead>Full Name</TableHead>
                           <TableHead>Slack Tag</TableHead>
                           <TableHead>Added On</TableHead>
+                          <TableHead className="w-[80px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -252,6 +259,15 @@ const SlackIntegration = () => {
                             <TableCell>{user.realName}</TableCell>
                             <TableCell>{user.slackTag}</TableCell>
                             <TableCell>{user.addedOn || "N/A"}</TableCell>
+                            <TableCell>
+                              {slackService && (
+                                <SendMessageButton
+                                  userId={user.userId}
+                                  userName={user.realName}
+                                  slackService={slackService}
+                                />
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -269,6 +285,7 @@ const SlackIntegration = () => {
                             <TableHead>Full Name</TableHead>
                             <TableHead>Slack Tag</TableHead>
                             <TableHead>Added On</TableHead>
+                            <TableHead className="w-[80px]"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -277,6 +294,15 @@ const SlackIntegration = () => {
                               <TableCell>{user.realName}</TableCell>
                               <TableCell>{user.slackTag}</TableCell>
                               <TableCell>{user.addedOn}</TableCell>
+                              <TableCell>
+                                {slackService && (
+                                  <SendMessageButton
+                                    userId={user.userId}
+                                    userName={user.realName}
+                                    slackService={slackService}
+                                  />
+                                )}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

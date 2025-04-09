@@ -1,3 +1,4 @@
+
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
@@ -54,6 +55,61 @@ try {
     } catch (error) {
       console.error('Error proxying to Slack API:', error.message);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // New endpoint for sending direct messages to users
+  app.post('/api/slack/send-dm', async (req, res) => {
+    try {
+      const { userId, messageText, token } = req.body;
+      const authToken = token || process.env.SLACK_BOT_TOKEN;
+      
+      // First open a direct message channel
+      const openResponse = await axios.post('https://slack.com/api/conversations.open', 
+        { users: userId },
+        { 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+      
+      if (!openResponse.data.ok) {
+        throw new Error(`Failed to open DM channel: ${openResponse.data.error}`);
+      }
+      
+      const dmChannelId = openResponse.data.channel.id;
+      
+      // Then send the message to the channel
+      const messageResponse = await axios.post('https://slack.com/api/chat.postMessage', 
+        { 
+          channel: dmChannelId,
+          text: messageText 
+        },
+        { 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+      
+      if (!messageResponse.data.ok) {
+        throw new Error(`Failed to send message: ${messageResponse.data.error}`);
+      }
+      
+      res.json({
+        success: true,
+        messageTs: messageResponse.data.ts,
+        channel: dmChannelId
+      });
+    } catch (error) {
+      console.error('Error sending DM via Slack API:', error.message);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
     }
   });
 

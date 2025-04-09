@@ -1,4 +1,3 @@
-
 interface SlackUserProfile {
   real_name: string;
   display_name: string;
@@ -32,6 +31,13 @@ export interface UserMapping {
   slackTag: string;
   userId: string;
   addedOn?: string;
+}
+
+interface SendDmResponse {
+  success: boolean;
+  messageTs?: string;
+  channel?: string;
+  error?: string;
 }
 
 export class SlackService {
@@ -175,6 +181,43 @@ export class SlackService {
     }
   }
   
+  async sendDirectMessage(userId: string, messageText: string): Promise<SendDmResponse> {
+    try {
+      if (this.token.startsWith('xoxb-demo')) {
+        return this.getMockDmResponse(userId);
+      }
+      
+      const response = await fetch(`${this.apiUrl}/send-dm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: this.token,
+          userId,
+          messageText
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to send direct message: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error sending direct message to ${userId}:`, error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error(
+          'Failed to connect to proxy server. Make sure your server is running on http://localhost:3001. ' +
+          'Run "node server.js" in a separate terminal window before using this app.'
+        );
+      }
+      
+      throw error;
+    }
+  }
+  
   private storeMappings(mappings: UserMapping[]): void {
     try {
       localStorage.setItem('slack_user_mappings', JSON.stringify(mappings));
@@ -250,5 +293,13 @@ export class SlackService {
     this.storeMappings(mockMappings);
     
     return mockMappings;
+  }
+  
+  private getMockDmResponse(userId: string): SendDmResponse {
+    return {
+      success: true,
+      messageTs: new Date().getTime().toString(),
+      channel: `D${userId.substring(1)}`
+    };
   }
 }
