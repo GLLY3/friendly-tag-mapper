@@ -44,14 +44,18 @@ export class SlackService {
   private token: string;
   private channelId: string;
   private apiUrl: string;
+  private isDemoMode: boolean = false;
 
   constructor() {
-    this.token = import.meta.env.VITE_SLACK_BOT_TOKEN;
-    this.channelId = import.meta.env.VITE_SLACK_CHANNEL_ID;
+    this.token = import.meta.env.VITE_SLACK_BOT_TOKEN || '';
+    this.channelId = import.meta.env.VITE_SLACK_CHANNEL_ID || '';
     this.apiUrl = 'http://localhost:3001/api/slack';
 
     if (!this.token || !this.channelId) {
-      throw new Error('SLACK_BOT_TOKEN and SLACK_CHANNEL_ID must be set in environment variables');
+      console.log('Slack credentials not found, running in demo mode');
+      this.isDemoMode = true;
+      this.token = 'xoxb-demo-token';
+      this.channelId = 'C-demo-channel';
     }
   }
 
@@ -60,7 +64,7 @@ export class SlackService {
       let members: string[] = [];
       let cursor: string | undefined;
       
-      if (this.token.startsWith('xoxb-demo')) {
+      if (this.isDemoMode) {
         return this.getMockMembers();
       }
       
@@ -113,7 +117,7 @@ export class SlackService {
 
   async getUserInfo(userId: string): Promise<SlackUser> {
     try {
-      if (this.token.startsWith('xoxb-demo')) {
+      if (this.isDemoMode) {
         return this.getMockUserInfo(userId);
       }
       
@@ -144,7 +148,7 @@ export class SlackService {
 
   async mapUserTagsToIds(): Promise<UserMapping[]> {
     try {
-      if (this.token.startsWith('xoxb-demo')) {
+      if (this.isDemoMode) {
         return this.getMockUserMappings();
       }
       
@@ -188,7 +192,7 @@ export class SlackService {
   
   async sendDirectMessage(userId: string, messageText: string): Promise<SendDmResponse> {
     try {
-      if (this.token.startsWith('xoxb-demo')) {
+      if (this.isDemoMode) {
         return this.getMockDmResponse(userId);
       }
       
